@@ -1,8 +1,21 @@
 import { GoogleGenAI } from "@google/genai";
-import { AISettings } from "../types";
+import { AISettings, AISuggestion, MindGraphNode } from "../types";
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_OPENAI_MODEL = "gpt-4o";
+
+interface AIResponse {
+  content: string;
+  thought?: string;
+}
+
+/**
+ * Prompt Template Engine - Basic Structure
+ */
+const SYSTEM_PROMPTS = {
+  KNOWLEDGE_ASSISTANT: `你是一个专业的知识图谱助手。你的任务是根据上下文回答用户的问题，并生成适合作为知识点节点的内容。`,
+  CONNECTOR: `你是一个逻辑分析专家。你的任务是发现知识图谱节点之间潜在的语义联系。`
+};
 
 async function callOpenAI(prompt: string, settings: AISettings, json: boolean = false) {
   const url = `${settings.baseUrl}/chat/completions`;
@@ -28,42 +41,41 @@ async function callOpenAI(prompt: string, settings: AISettings, json: boolean = 
   return data.choices[0].message.content;
 }
 
-export async function askAI(context: string, question: string, settings: AISettings): Promise<{ content: string; thought?: string }> {
-  let prompt = `
-    你是一个知识图谱助手。
+export async function askAI(context: string, question: string, settings: AISettings): Promise<AIResponse> {
+  const structure = settings.enableThinking ? `
+    返回格式必须为 JSON，包含以下字段：
+    - "thought": 你的思考过程、分析逻辑和对上下文的理解
+    - "content": 最终给用户的简洁、核心回答
+  ` : "";
+
+  const prompt = `
+    ${SYSTEM_PROMPTS.KNOWLEDGE_ASSISTANT}
     
     上下文信息 (包含用户选中的文本及其所在的完整段落):
+    ---
     ${context}
+    ---
     
-    用户的问题:
-    "${question}"
+    用户的问题: "${question}"
     
-    请根据提供的上下文，给出一个简洁、深刻的中文回答。
-    这个回答将作为知识图谱中的一个新节点，因此请确保它：
-    1. 重点突出，结构清晰。
-    2. 能够直接补充或扩展现有的知识点。
-    3. 尽量保持在 100 字以内。
+    回答要求:
+    1. 重点突出，结构清晰，适合直观展示。
+    2. 尽量保持在 120 字以内。
+    3. 直接补充、扩展或解释现有的知识点。
+    ${structure}
   `;
-
-  if (settings.enableThinking) {
-    prompt += `
-    请在回答之前展示你的思考过程（Thinking Process）。
-    返回格式必须为 JSON，包含两个字段：
-    - "thought": 你的思考过程和分析逻辑
-    - "content": 最终给用户的简洁回答
-    `;
-  }
 
   try {
     if (settings.protocol === 'google') {
       const ai = new GoogleGenAI({ apiKey: settings.apiKey || process.env.GEMINI_API_KEY || "" });
       const config = settings.enableThinking ? { responseMimeType: "application/json" } : undefined;
-      const model = ai.models.generateContent({
+      
+      const response = await ai.models.generateContent({
         model: settings.model || DEFAULT_GEMINI_MODEL,
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config
       });
-      const response = await model;
+      
       const text = response.text || "";
       
       if (settings.enableThinking) {
@@ -76,7 +88,7 @@ export async function askAI(context: string, question: string, settings: AISetti
       }
       return { content: text };
     } else {
-      const res = await callOpenAI(prompt, settings, settings.enableThinking);
+      const res = await callOpenAI(prompt, settings, !!settings.enableThinking);
       if (settings.enableThinking) {
         try {
           const parsed = JSON.parse(res || "{}");
@@ -89,23 +101,29 @@ export async function askAI(context: string, question: string, settings: AISetti
     }
   } catch (error) {
     console.error("AI Error:", error);
-    return { content: "Error generating AI response." };
+    return { content: "AI 暂时无法回答，请检查配置或稍后再试。" };
   }
 }
 
-export async function suggestConnections(nodes: any[], settings: AISettings) {
-  const nodesSummary = nodes.map(n => `ID: ${n.id}, Content: ${n.data.content}`).join('\n');
+export async function suggestConnections(nodes: MindGraphNode[], settings: AISettings): Promise<AISuggestion[]> {
+  const nodesSummary = nodes.map(n => `ID: ${n.id}, 标题: ${n.data.label}, 内容: ${n.data.content.substring(0, 50)}...`).join('\n');
   
   const prompt = `
-    Given the following nodes in a research graph:
+    ${SYSTEM_PROMPTS.CONNECTOR}
+    
+    分析以下节点：
     ${nodesSummary}
     
-    Identify potential semantic connections between nodes that are not currently connected.
-    Return a JSON array of objects with 'source', 'target', and 'reason'.
-    The 'reason' should be in Chinese.
-    Example: [{"source": "node1", "target": "node2", "reason": "两者都讨论了市场趋势"}]
+    任务：
+    识别节点之间潜在的语义联系（尤其是当前未建立连接的节点）。
     
-    Return ONLY valid JSON.
+    输出要求：
+    返回一个 JSON 数组，每个对象包含：
+    - "source": 源节点 ID
+    - "target": 目标节点 ID
+    - "reason": 连线原因（中文，简洁有力）
+    
+    仅返回 JSON。
   `;
 
   try {
@@ -113,14 +131,12 @@ export async function suggestConnections(nodes: any[], settings: AISettings) {
       const ai = new GoogleGenAI({ apiKey: settings.apiKey || process.env.GEMINI_API_KEY || "" });
       const response = await ai.models.generateContent({
         model: settings.model || DEFAULT_GEMINI_MODEL,
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { responseMimeType: "application/json" }
       });
       return JSON.parse(response.text || "[]");
     } else {
       const res = await callOpenAI(prompt, settings, true);
-      // OpenAI often wraps JSON in code blocks or might just be raw if format is set.
-      // But gpt-4o with response_format json_object is reliable.
       return JSON.parse(res || "[]");
     }
   } catch (error) {
@@ -128,3 +144,4 @@ export async function suggestConnections(nodes: any[], settings: AISettings) {
     return [];
   }
 }
+

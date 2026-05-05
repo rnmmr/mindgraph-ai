@@ -1,10 +1,10 @@
 import React, { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { Handle, Position, NodeProps, useReactFlow } from 'reactflow';
-import { NodeData } from '../types';
+import { NodeData } from '../../types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChevronDown, ChevronRight, Brain } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '../../lib/utils';
 
 export const TextNode = memo(({ data, id, selected }: NodeProps<NodeData>) => {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -132,7 +132,7 @@ export const TextNode = memo(({ data, id, selected }: NodeProps<NodeData>) => {
   paragraphCounter.current = 0;
 
   const markdownComponents = React.useMemo(() => ({
-    p: ({ children, ...props }: any) => {
+    p: ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => {
       const idx = paragraphCounter.current++;
       return (
         <div className="paragraph-container relative group/p px-2 my-1" data-paragraph-index={idx}>
@@ -188,7 +188,7 @@ export const TextNode = memo(({ data, id, selected }: NodeProps<NodeData>) => {
         </div>
       );
     },
-    h1: ({ children, ...props }: any) => {
+    h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
       const idx = paragraphCounter.current++;
       return (
         <div className="paragraph-container relative group/p px-2 my-2" data-paragraph-index={idx}>
@@ -198,7 +198,7 @@ export const TextNode = memo(({ data, id, selected }: NodeProps<NodeData>) => {
         </div>
       );
     },
-    h2: ({ children, ...props }: any) => {
+    h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
       const idx = paragraphCounter.current++;
       return (
         <div className="paragraph-container relative group/p px-2 my-1.5" data-paragraph-index={idx}>
@@ -208,7 +208,7 @@ export const TextNode = memo(({ data, id, selected }: NodeProps<NodeData>) => {
         </div>
       );
     },
-    h3: ({ children, ...props }: any) => {
+    h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
       const idx = paragraphCounter.current++;
       return (
         <div className="paragraph-container relative group/p px-2 my-1" data-paragraph-index={idx}>
@@ -218,10 +218,10 @@ export const TextNode = memo(({ data, id, selected }: NodeProps<NodeData>) => {
         </div>
       );
     },
-    ul: ({ children }: any) => <ul className="pl-0 m-0 !my-1 list-disc">{children}</ul>,
-    ol: ({ children }: any) => <ol className="pl-0 m-0 !my-1 list-decimal">{children}</ol>,
+    ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => <ul className="pl-0 m-0 !my-1 list-disc">{children}</ul>,
+    ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => <ol className="pl-0 m-0 !my-1 list-decimal">{children}</ol>,
     hr: () => <div className="border-t border-slate-200 my-4 h-0 w-full" />,
-    li: ({ children, ...props }: any) => {
+    li: ({ children, ...props }: React.HTMLAttributes<HTMLLIElement>) => {
       const idx = paragraphCounter.current++;
       return (
         <div className="paragraph-container relative group/p px-2 my-0.5" data-paragraph-index={idx}>

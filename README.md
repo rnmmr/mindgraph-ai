@@ -1,20 +1,38 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# MindGraph AI
 
-# Run and deploy your AI Studio app
+MindGraph AI is an AI-powered, non-linear reasoning and note-taking tool that helps you connect fragmented information into a cohesive knowledge graph. It allows you to select text from a paragraph, ask an AI model (like Google Gemini or OpenAI), and automatically connect the generated response directly to the specific paragraph you selected. 
 
-This contains everything you need to run your app locally.
+By mapping thoughts spatially, MindGraph AI provides a completely new way to research, brainstorm, and build knowledge visually.
 
-View your app in AI Studio: https://ai.studio/apps/c7b9cd98-3dd5-4bef-b714-dd3ddfa0d48d
+## Features
 
-## Run Locally
+- **Text-to-Node Contextual Linking:** Highlight any thought in a text block to chat with the AI. The resulting answer is automatically wired back to the exact paragraph you highlighted.
+- **AI Smart Suggestions:** The built-in logic connector can analyze all existing nodes and suggest previously unseen semantic connections between them.
+- **Dual AI Engine Support:** Supports natively connecting to Google Gemini and OpenAI-compatible endpoints directly from your browser.
+- **Infinite Canvas:** Build out your knowledge tree with zooming, panning, and seamless navigation. 
 
-**Prerequisites:**  Node.js
+## Getting Started
 
+1. Clone the repository and install dependencies `npm i`.
+2. Start the dev server: `npm run dev`.
+3. Open `http://localhost:3000` to start using MindGraph AI.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Security Warning
+
+> **⚠️ API Key Storage Notice:**
+> 
+> This application is currently a client-only architecture. Any AI API Keys you provide are stored in your browser's **`localStorage`**. 
+> Please be aware that you should only use this app in trusted, non-public environments and only with API keys you are comfortable keeping in your local browser state.
+
+## Tech Stack
+
+- **React 19**
+- **Vite**
+- **ReactFlow** (Canvas interactions)
+- **Zustand** (State management)
+- **Tailwind CSS** (Styling)
+- **Google Gen AI SDK & fetch** (AI communication)
+
+## License
+
+MIT
