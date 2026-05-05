@@ -22,7 +22,7 @@ import 'reactflow/dist/style.css';
 import { TextNode } from './components/TextNode';
 import { askAI, suggestConnections, DEFAULT_GEMINI_MODEL, DEFAULT_OPENAI_MODEL } from './services/ai';
 import { MindNode, MindEdge, NodeData, AISettings } from './types';
-import { Sparkles, Plus, Send, X, Loader2, Link2, Trash2, Download, HelpCircle, Settings2, Brain, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, Plus, Send, X, Check, Loader2, Link2, Trash2, Download, HelpCircle, Settings2, Brain, ChevronLeft, ChevronRight, MousePointer2, MoveVertical } from 'lucide-react';
 import { cn } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -102,7 +102,7 @@ const initialNodes: MindNode[] = [
     width: 450,
     data: { 
       label: '🚀 快速上手指南', 
-      content: '# 欢迎使用 MindGraph\n\n这是一个由 **AI 驱动** 的非线性思维工具，帮助你从碎片信息中构建知识网络。\n\n### 💡 核心操作\n\n1. **划选提问**：选中这段话中的任何文字，在弹出的对话框中输入问题。AI 会结合上下文生成回答，并**自动连线**到你选中的段落。\n2. **自由连线**：悬停在段落或标题上，拖拽两侧出现的紫色圆点即可手动建立联系。\n3. **调整大小**：拖拽卡片右上角的蓝色 L 型图标来调整宽度。\n4. **编辑模式**：点击卡片右上角的“编辑”按钮，可以直接使用 Markdown 修改内容。\n5. **智能建议**：点击顶部工具栏的“智能建议”，让 AI 帮你发现节点间隐藏的逻辑关系。\n\n--- \n*尝试选中“非线性思维”并问问 AI 它的含义吧！*',
+      content: '# 欢迎使用 MindGraph\n\n这是一个由 **AI 驱动** 的非线性思维工具，帮助你从碎片信息中构建知识网络。\n\n### 💡 核心操作\n\n1. **划选提问**：选中这段话中的任何文字，在弹出的对话框中输入问题。AI 会结合上下文生成回答，并**自动连线**到你选中的段落。\n2. **基础操作**：点击左侧工具栏的“+”**新建**节点；悬停在节点边缘并拖拽紫色圆点即可**手动连线**；选中节点或连线后按 **Delete** 键即可**删除**。\n3. **调整大小**：拖拽卡片右上角的蓝色 L 型图标来调整宽度。\n4. **编辑模式**：点击卡片右上角的“编辑”按钮，可以直接使用 Markdown 修改内容。\n5. **智能建议**：点击顶部工具栏的“智能建议”，让 AI 帮你发现节点间隐藏的逻辑关系。\n\n--- \n*尝试选中“非线性思维”并问问 AI 它的含义吧！*',
       type: 'text'
     },
   },
@@ -155,6 +155,28 @@ function MindGraphApp() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
+  const [isScrollMode, setIsScrollMode] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Global keyboard shortcuts when selection is active
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!selection) return;
+
+      if (e.key === 'Escape') {
+        setSelection(null);
+      }
+      
+      // Allow user to quickly focus input with Tab key
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [selection]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -421,6 +443,29 @@ function MindGraphApp() {
     a.click();
   };
 
+  const onKeyDown = useCallback((event: React.KeyboardEvent) => {
+    // Strictly disable deletion if any input or textarea is focused
+    const activeElem = document.activeElement;
+    const isEditing = 
+      activeElem?.tagName === 'INPUT' || 
+      activeElem?.tagName === 'TEXTAREA' ||
+      (activeElem as HTMLElement)?.isContentEditable;
+    
+    if (isEditing) return;
+
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      const selectedNodes = nodes.filter((n) => n.selected);
+      const selectedEdges = edges.filter((e) => e.selected);
+
+      if (selectedNodes.length > 0) {
+        setNodes((nds) => nds.filter((node) => !node.selected));
+      }
+      if (selectedEdges.length > 0) {
+        setEdges((eds) => eds.filter((edge) => !edge.selected));
+      }
+    }
+  }, [nodes, edges, setNodes, setEdges]);
+
   const [showHelp, setShowHelp] = useState(false);
 
   return (
@@ -434,32 +479,38 @@ function MindGraphApp() {
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
+        onKeyDown={onKeyDown}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         connectionMode={ConnectionMode.Loose}
+        zoomOnScroll={!isScrollMode}
+        panOnScroll={isScrollMode}
         fitView
+        proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{
           style: { stroke: '#6366f1', strokeWidth: 2 },
           markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
         }}
       >
         <Background color="#cbd5e1" gap={20} />
-        <Controls />
+        <Controls 
+          className="custom-controls"
+        />
         
-        <Panel position="top-right" className="z-10 flex flex-col gap-2">
+        <Panel position="top-right" className="z-10 flex flex-col gap-3 mr-1 mt-1">
           <button 
             onClick={() => setShowHelp(true)}
-            className="p-2 bg-white/80 backdrop-blur-md rounded-full shadow-lg border border-slate-200 text-slate-400 hover:text-indigo-600 transition-colors"
+            className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 text-slate-400 hover:text-indigo-600 transition-all hover:scale-105 active:scale-95 flex items-center justify-center group"
             title="帮助"
           >
-            <HelpCircle size={24} />
+            <HelpCircle size={20} />
           </button>
           <button 
             onClick={() => setShowSettings(true)}
-            className="p-2 bg-white/80 backdrop-blur-md rounded-full shadow-lg border border-slate-200 text-slate-400 hover:text-indigo-600 transition-colors"
+            className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 text-slate-400 hover:text-indigo-600 transition-all hover:scale-105 active:scale-95 flex items-center justify-center group"
             title="AI 设置"
           >
-            <Settings2 size={24} />
+            <Settings2 size={20} />
           </button>
         </Panel>
 
@@ -482,24 +533,39 @@ function MindGraphApp() {
                 
                 <div className="space-y-4">
                   <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 flex items-center justify-center font-bold">1</div>
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 flex items-center justify-center font-bold text-xs">1</div>
                     <div>
-                      <h4 className="font-bold text-slate-800">选择优先 AI</h4>
-                      <p className="text-sm text-slate-500">在节点内突出显示（选中）任何文本，即可触发 AI 查询面板。AI 将根据该特定上下文进行回答。</p>
+                      <h4 className="font-bold text-slate-800 text-sm">划选 AI 提问</h4>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        在节点内选中文字即可触发。弹出面板后按 <kbd className="bg-slate-100 px-1 rounded border border-slate-300 font-sans shadow-sm text-slate-700">Tab</kbd> 可快速聚焦输入框。
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 flex items-center justify-center font-bold">2</div>
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 flex items-center justify-center font-bold text-xs">2</div>
                     <div>
-                      <h4 className="font-bold text-slate-800">自动连接节点</h4>
-                      <p className="text-sm text-slate-500">AI 的回答会自动成为新节点，并连接到您最初的选择。</p>
+                      <h4 className="font-bold text-slate-800 text-sm">画布模式切换</h4>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        左侧工具栏可切换<strong>缩放模式</strong>（滚轮缩放）或<strong>滚动模式</strong>（滚轮上下滚动），方便不同操作习惯。
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 flex items-center justify-center font-bold">3</div>
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 flex items-center justify-center font-bold text-xs">3</div>
                     <div>
-                      <h4 className="font-bold text-slate-800">语义发现</h4>
-                      <p className="text-sm text-slate-500">使用“建议连接”让 AI 发现研究笔记之间隐藏的关系。</p>
+                      <h4 className="font-bold text-slate-800 text-sm">高效编辑与删除</h4>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        按 <kbd className="bg-slate-100 px-1 rounded border border-slate-300 font-sans shadow-sm text-slate-700">Delete</kbd> 或 <kbd className="bg-slate-100 px-1 rounded border border-slate-300 font-sans shadow-sm text-slate-700">Backspace</kbd> 快速删除选中的节点或连线。
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 flex items-center justify-center font-bold text-xs">4</div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">手动控制</h4>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        点击左侧 <strong className="text-indigo-600">+</strong> 新建节点。悬停节点边缘拖拽紫色圆点即可手动连线。
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -619,7 +685,7 @@ function MindGraphApp() {
           <motion.div 
             initial={false}
             animate={{ 
-              width: isToolbarCollapsed ? 52 : 160,
+              width: isToolbarCollapsed ? 54 : 160,
             }}
             transition={{ type: "tween", ease: "circOut", duration: 0.3 }}
             style={{ originX: 0 }}
@@ -628,7 +694,7 @@ function MindGraphApp() {
             {/* Content Container */}
             <div className="w-full flex flex-col gap-3 flex-shrink-0">
               {/* Header */}
-              <div className="flex items-center justify-start w-full h-8">
+              <div className="flex items-center justify-start w-full h-8 overflow-hidden">
                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex-shrink-0 flex items-center justify-center shadow-indigo-100 shadow-lg">
                   <Sparkles className="text-white w-4 h-4" />
                 </div>
@@ -650,7 +716,7 @@ function MindGraphApp() {
               </div>
               
               {/* Actions */}
-              <div className="flex flex-col gap-1.5 w-full">
+              <div className="flex flex-col gap-2 w-full">
                 <button 
                   onClick={addEmptyNode}
                   className="flex items-center justify-start bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium h-8 border border-slate-100 w-full overflow-hidden transition-colors group/btn"
@@ -719,11 +785,17 @@ function MindGraphApp() {
                 </button>
 
                 <button 
-                  onClick={clearBoard}
-                  className="flex items-center justify-start bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-medium h-8 border border-red-100/50 w-full overflow-hidden transition-colors"
+                  onClick={() => setIsScrollMode(!isScrollMode)}
+                  className={cn(
+                    "flex items-center justify-start rounded-lg text-xs font-medium h-8 border w-full overflow-hidden transition-colors group/btn",
+                    isScrollMode 
+                      ? "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-100/50" 
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-100"
+                  )}
+                  title={isScrollMode ? "当前：滚动模式 (鼠标滚轮 = 上下滚动)" : "当前：缩放模式 (鼠标滚轮 = 缩放画布)"}
                 >
                   <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
-                    <Trash2 size={14} />
+                    {isScrollMode ? <MoveVertical size={14} /> : <MousePointer2 size={14} />}
                   </div>
                   <AnimatePresence initial={false}>
                     {!isToolbarCollapsed && (
@@ -734,7 +806,42 @@ function MindGraphApp() {
                         transition={{ duration: 0.2 }}
                         className="whitespace-nowrap pr-3"
                       >
-                        清空画布
+                        {isScrollMode ? "滚动模式" : "缩放模式"}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </button>
+
+                <button 
+                  onClick={() => {
+                    if (showClearConfirm) {
+                      clearBoard();
+                      setShowClearConfirm(false);
+                    } else {
+                      setShowClearConfirm(true);
+                    }
+                  }}
+                  onMouseLeave={() => setShowClearConfirm(false)}
+                  className={cn(
+                    "flex items-center justify-start rounded-lg text-xs font-medium h-8 border w-full overflow-hidden transition-all duration-200",
+                    showClearConfirm 
+                      ? "bg-red-600 text-white border-red-600 shadow-lg shadow-red-200 scale-[1.02]" 
+                      : "bg-red-50 hover:bg-red-100 text-red-600 border-red-100/50"
+                  )}
+                >
+                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+                    {showClearConfirm ? <Check size={14} /> : <Trash2 size={14} />}
+                  </div>
+                  <AnimatePresence initial={false}>
+                    {!isToolbarCollapsed && (
+                      <motion.span 
+                        initial={{ opacity: 0, x: -5 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -5 }}
+                        transition={{ duration: 0.2 }}
+                        className="whitespace-nowrap pr-3"
+                      >
+                        {showClearConfirm ? "确定清空？" : "清空画布"}
                       </motion.span>
                     )}
                   </AnimatePresence>
@@ -838,9 +945,9 @@ function MindGraphApp() {
             </p>
             <div className="relative">
               <input 
-                autoFocus
+                ref={inputRef}
                 type="text"
-                placeholder="向 AI 提问..."
+                placeholder="按 Tab 键聚焦开始提问..."
                 value={aiQuery}
                 onChange={(e) => setAiQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAskAI()}
